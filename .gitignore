@@ -8,7 +8,8 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
+# dist (permitido para deploy em hospedagem simples)
+# dist
 dist-ssr
 *.local
 .env
