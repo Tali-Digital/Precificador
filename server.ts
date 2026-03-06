@@ -29,13 +29,23 @@ async function startServer() {
 
   // Inicializar tabelas
   await db.execute(`
+    CREATE TABLE IF NOT EXISTS markers (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      nome VARCHAR(255) NOT NULL,
+      cor VARCHAR(50) NOT NULL
+    )
+  `);
+
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS prices (
       id INT AUTO_INCREMENT PRIMARY KEY,
       nome VARCHAR(255) NOT NULL,
       valorSugerido DECIMAL(10, 2) NOT NULL,
       valorOportunidade DECIMAL(10, 2) NOT NULL,
       valorGanho DECIMAL(10, 2) NOT NULL,
-      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      markerId INT NULL,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (markerId) REFERENCES markers(id) ON DELETE SET NULL
     )
   `);
 
@@ -49,10 +59,36 @@ async function startServer() {
     )
   `);
 
-  // API Routes
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS templates (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      nome VARCHAR(255) NOT NULL,
+      conteudo LONGTEXT NOT NULL,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Inserir marcadores padrão se não existirem
+  const [existingMarkers] = await db.execute("SELECT COUNT(*) as count FROM markers") as any;
+  if (existingMarkers[0].count === 0) {
+    await db.execute("INSERT INTO markers (nome, cor) VALUES (?, ?), (?, ?), (?, ?), (?, ?)", [
+      'Aprovado', '#10b981',
+      'Aguardando', '#f59e0b',
+      'Ajustes', '#3b82f6',
+      'Reprovado', '#ef4444'
+    ]);
+  }
+
+  // API Routes - Prices
   app.get("/api/prices", async (req, res) => {
     try {
-      const [prices] = await db.execute("SELECT * FROM prices ORDER BY createdAt DESC") as any;
+      const [prices] = await db.execute(`
+        SELECT p.*, m.nome as markerNome, m.cor as markerCor 
+        FROM prices p 
+        LEFT JOIN markers m ON p.markerId = m.id 
+        ORDER BY p.createdAt DESC
+      `) as any;
+
       const pricesWithTasks = await Promise.all(
         prices.map(async (price: any) => {
           const [tasks] = await db.execute("SELECT * FROM tasks WHERE priceId = ?", [price.id]) as any;
@@ -67,11 +103,11 @@ async function startServer() {
   });
 
   app.post("/api/prices", async (req, res) => {
-    const { nome, valorSugerido, valorOportunidade, valorGanho, tarefas } = req.body;
+    const { nome, valorSugerido, valorOportunidade, valorGanho, tarefas, markerId } = req.body;
     try {
       const [result] = await db.execute(
-        "INSERT INTO prices (nome, valorSugerido, valorOportunidade, valorGanho) VALUES (?, ?, ?, ?)",
-        [nome, valorSugerido, valorOportunidade, valorGanho]
+        "INSERT INTO prices (nome, valorSugerido, valorOportunidade, valorGanho, markerId) VALUES (?, ?, ?, ?, ?)",
+        [nome, valorSugerido, valorOportunidade, valorGanho, markerId || null]
       ) as any;
       const priceId = result.insertId;
 
@@ -93,6 +129,18 @@ async function startServer() {
     }
   });
 
+  app.patch("/api/prices/:id", async (req, res) => {
+    const { id } = req.params;
+    const { markerId } = req.body;
+    try {
+      await db.execute("UPDATE prices SET markerId = ? WHERE id = ?", [markerId, id]);
+      res.json({ message: "Preço atualizado com sucesso" });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Erro ao atualizar preço" });
+    }
+  });
+
   app.delete("/api/prices/:id", async (req, res) => {
     const { id } = req.params;
     try {
@@ -101,6 +149,84 @@ async function startServer() {
     } catch (error) {
       console.error(error);
       res.status(500).json({ error: "Erro ao remover preço" });
+    }
+  });
+
+  // API Routes - Markers
+  app.get("/api/markers", async (req, res) => {
+    try {
+      const [markers] = await db.execute("SELECT * FROM markers") as any;
+      res.json(markers);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Erro ao buscar marcadores" });
+    }
+  });
+
+  app.post("/api/markers", async (req, res) => {
+    const { nome, cor } = req.body;
+    try {
+      const [result] = await db.execute("INSERT INTO markers (nome, cor) VALUES (?, ?)", [nome, cor]) as any;
+      res.status(201).json({ id: result.insertId, nome, cor });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Erro ao criar marcador" });
+    }
+  });
+
+  app.put("/api/markers/:id", async (req, res) => {
+    const { id } = req.params;
+    const { nome, cor } = req.body;
+    try {
+      await db.execute("UPDATE markers SET nome = ?, cor = ? WHERE id = ?", [nome, cor, id]);
+      res.json({ id, nome, cor });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Erro ao atualizar marcador" });
+    }
+  });
+
+  app.delete("/api/markers/:id", async (req, res) => {
+    const { id } = req.params;
+    try {
+      await db.execute("DELETE FROM markers WHERE id = ?", [id]);
+      res.json({ message: "Marcador removido com sucesso" });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Erro ao remover marcador" });
+    }
+  });
+
+  // API Routes - Templates
+  app.get("/api/templates", async (req, res) => {
+    try {
+      const [templates] = await db.execute("SELECT * FROM templates ORDER BY createdAt DESC") as any;
+      res.json(templates);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Erro ao buscar modelos" });
+    }
+  });
+
+  app.post("/api/templates", async (req, res) => {
+    const { nome, conteudo } = req.body;
+    try {
+      const [result] = await db.execute("INSERT INTO templates (nome, conteudo) VALUES (?, ?)", [nome, JSON.stringify(conteudo)]) as any;
+      res.status(201).json({ id: result.insertId, nome, conteudo, createdAt: new Date() });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Erro ao salvar modelo" });
+    }
+  });
+
+  app.delete("/api/templates/:id", async (req, res) => {
+    const { id } = req.params;
+    try {
+      await db.execute("DELETE FROM templates WHERE id = ?", [id]);
+      res.json({ message: "Modelo removido com sucesso" });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Erro ao remover modelo" });
     }
   });
 
