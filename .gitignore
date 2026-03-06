@@ -8,14 +8,10 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-# dist
 # dist-ssr
 
-# Permitir arquivos de build na raiz (para Hostinger)
-!index.html
-!index.php
-!.htaccess
-!assets/
+# Permitir pasta dist (para Hostinger)
+!dist/
 *.local
 .env
 database.sqlite
