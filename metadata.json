@@ -1,0 +1,5 @@
+{
+  "name": "Precificador de Projetos Talí",
+  "description": "Uma calculadora interativa para precificar projetos de forma rápida e precisa. Baseado na planilha de precificação da Talí, este aplicativo calcula o valor da hora, o custo base do projeto e oferece cenários de ganho e oportunidade.",
+  "requestFramePermissions": []
+}
