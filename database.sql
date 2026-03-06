@@ -1,0 +1,18 @@
+-- Tabela de Preços
+CREATE TABLE IF NOT EXISTS prices (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  nome VARCHAR(255) NOT NULL,
+  valorSugerido DECIMAL(10, 2) NOT NULL,
+  valorOportunidade DECIMAL(10, 2) NOT NULL,
+  valorGanho DECIMAL(10, 2) NOT NULL,
+  createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabela de Tarefas
+CREATE TABLE IF NOT EXISTS tasks (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  priceId INT NOT NULL,
+  nome VARCHAR(255) NOT NULL,
+  horas DECIMAL(10, 2) NOT NULL,
+  FOREIGN KEY (priceId) REFERENCES prices(id) ON DELETE CASCADE
+);
